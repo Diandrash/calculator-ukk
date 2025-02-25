@@ -1,64 +1,52 @@
 <?php
-include "connection.php"; // Koneksi database
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+require 'connection.php'; 
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!isset($_POST["expression"])) {
-        die(json_encode(["status" => "error", "message" => "Data tidak lengkap"]));
-    }
+    $expression = trim($_POST['expression'] ?? '');
 
-    $expression = trim($_POST["expression"]); // Hapus spasi di awal & akhir
+    // Gunakan regex untuk mendapatkan angka pertama, operator, dan angka kedua
+    if (preg_match('/^(\d+)\s*([\+\-\*\/x])\s*(\d+)?$/', $expression, $matches)) {
+        $firstNumber = (int)$matches[1];  // Ambil angka pertama
+        $operator = $matches[2];          // Ambil operator
+        $secondNumber = isset($matches[3]) ? (int)$matches[3] : null; // Ambil angka kedua jika ada
 
-    // Ekstraksi angka & operator menggunakan regex
-    if (preg_match('/(\d+)\s*([\+\-\*/x])\s*(\d+)/', $expression, $matches)) {
-        $first = (int)$matches[1];   // Bilangan pertama
-        $operator = $matches[2];     // Operator
-        $second = (int)$matches[3];  // Bilangan kedua
-
-        // Ganti 'x' dengan '*' untuk operasi perkalian
-        if ($operator === 'x') {
+        // Normalisasi operator 'x' menjadi '*'
+        if ($operator === 'x' || $operator === 'X') {
             $operator = '*';
+        }
+
+        // Jika angka kedua tidak ada, hentikan proses
+        if ($secondNumber === null) {
+            die(json_encode(["status" => "error", "message" => "Ekspresi tidak lengkap!"]));
         }
 
         // Hitung hasil berdasarkan operator
         switch ($operator) {
-            case '+': $result = $first + $second; break;
-            case '-': $result = $first - $second; break;
-            case '*': $result = $first * $second; break;
+            case '+': $result = $firstNumber + $secondNumber; break;
+            case '-': $result = $firstNumber - $secondNumber; break;
+            case '*': $result = $firstNumber * $secondNumber; break;
             case '/': 
-                if ($second == 0) {
-                    die(json_encode(["status" => "error", "message" => "Error (div by 0)"]));
-                }
-                $result = (int)($first / $second); // Pastikan hasil tetap integer
+                $result = ($secondNumber != 0) ? (int) round($firstNumber / $secondNumber) : 0;
                 break;
-            default:
+            default: 
                 die(json_encode(["status" => "error", "message" => "Operator tidak valid"]));
         }
 
-        // Gunakan prepared statement agar lebih aman
-        $stmt = $conn->prepare("INSERT INTO history (first_numbers, second_numbers, expression, result) VALUES (?, ?, ?, ?)");
-        if (!$stmt) {
-            die(json_encode(["status" => "error", "message" => "Query gagal: " . $conn->error]));
-        }
+        // Simpan hanya operator ke kolom `expression`
+        $stmt = $conn->prepare("INSERT INTO history (expression, first_numbers, second_numbers, result, createdAt) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->bind_param("siii", $operator, $firstNumber, $secondNumber, $result);
 
-        // Bind parameter (i = integer, s = string)
-        $stmt->bind_param("iisi", $first, $second, $expression, $result);
-
-        // Eksekusi query
         if ($stmt->execute()) {
-            echo json_encode(["status" => "success", "result" => $result]);
+            echo json_encode(["status" => "success", "message" => "Data berhasil disimpan!", "result" => $result]);
         } else {
-            echo json_encode(["status" => "error", "message" => "Gagal menyimpan ke database: " . $stmt->error]);
+            echo json_encode(["status" => "error", "message" => "Gagal menyimpan data: " . $stmt->error]);
         }
 
-        // Tutup statement
         $stmt->close();
     } else {
-        echo json_encode(["status" => "error", "message" => "Format ekspresi tidak valid"]);
+        echo json_encode(["status" => "error", "message" => "Format input tidak valid!"]);
     }
-
-    // Tutup koneksi database
-    $conn->close();
+} else {
+    echo json_encode(["status" => "error", "message" => "Metode request tidak valid!"]);
 }
+?>

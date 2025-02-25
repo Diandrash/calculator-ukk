@@ -7,19 +7,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kalkulator PHP</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen bg-[#2D2A37]">
 
     <div class="container flex flex-col border border-[#7F45E2] w-[400px] p-6 box-border
-        gap-6 rounded-md
+        gap-6 rounded-md relative
     
     ">
 
         <div class="result-area
-            flex flex-col gap-2 items-end 
+            flex flex-col gap-2 items-end relative
         ">
             <p id="question" class="text-white font-regular text-md px-2 opacity-60"></p>
             <h1 id="result-area" class="text-5xl font-bold text-white px-2">0</h1>
+
+            <img src="assets/history.png" alt="image" id="toggleHistoryBtn" class="absolute top-0 left-0"/>
         </div>
 
         <div class="grid grid-cols-4 gap-2 ">
@@ -58,6 +61,45 @@
                         ?>
                         
         </div>
+
+        <div id="historyArea" class="history-area w-[240px] h-[100%] border border-[#7F45E2]
+        absolute top-0 bottom-0 left-[-2600px] p-3 rounded-sm
+        flex flex-col gap-2
+        "
+        >
+            <h1 class="text-md text-white">History</h1>
+
+            <div class="w-full h-full max-h-[100%] overflow-y-auto scrollbar-hidden"
+            >
+            <?php
+                require 'connection.php'; // File koneksi database
+
+                $query = "SELECT first_numbers, expression, second_numbers, result FROM history ORDER BY createdAt DESC";
+                $result = $conn->query($query);
+
+                if ($result->num_rows > 0) {
+                    while ($row = $result->fetch_assoc()) {
+                        // Format ekspresi menjadi: "6 + 6"
+                        $formattedExpression = "{$row['first_numbers']} {$row['expression']} {$row['second_numbers']}";
+                        $resultValue = $row['result'];
+
+                        // Tampilkan dalam HTML
+                        echo "
+                            <div class='flex flex-col justify-between w-full bg-transparent hover:bg-[#3B3749] p-2'>
+                                <h1 class='text-sm text-white opacity-60'>$formattedExpression</h1>
+                                <h1 class='text-2xl text-white font-bold leading-none'>$resultValue</h1>
+                            </div>
+                        ";
+                    }
+                } 
+
+                $conn->close();
+            ?>
+            </div>
+
+        </div>
+
+
     </div>
 
     <!-- <div class="bg-white shadow-lg rounded-lg p-6 w-96">
@@ -97,47 +139,58 @@
     
 
     <script>
-    let currentInput = ""; // Menyimpan input user
-    let questionInput = ""
 
-    function pressButton(value) {
-        const resultText = document.getElementById("result-area");
-        const questionText = document.getElementById("question");
-        if (value === "C") {
-            currentInput = ""; // Reset input
-            questionInput = ""
+        const toggleHistoryBtn = document.getElementById("toggleHistoryBtn");
+        const historyArea = document.getElementById("historyArea");
 
-        } else if (value === "=") {
-            try {
-                questionInput = currentInput
-                console.log({currentInput})
-                console.log("calculating...")
-                fetch("process.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `expression=${encodeURIComponent(currentInput)}`
-                })
-                // .then((res) => res.json())
-                .then((res) => console.log(res))
-                // .then((data) => console.log("Response from server : " + data))
-                .catch((err) => console.log(err))
+        let isOpen = false;
 
-                let expression = currentInput.replace(/x/g, "*");  // Replace "X" symbol to "*"
+        toggleHistoryBtn.addEventListener("click", () => {
+            isOpen = !isOpen;
+            historyArea.style.left = isOpen ? "-260px" : "-2600px";
+        });
 
-                currentInput = eval(expression); // Hitung hasil
+        let currentInput = ""; // Menyimpan input user
+        let questionInput = ""
+            
+        function pressButton(value) {
+            const resultText = document.getElementById("result-area");
+            const questionText = document.getElementById("question");
+            if (value === "C") {
+                currentInput = ""; // Reset input
+                questionInput = ""
 
-            } catch {
-                currentInput = "Error"; // Jika ada kesalahan
-                // currentInput = "expression : " + expression; // Jika ada kesalahan=
+            } else if (value === "=") {
+                try {
+                    questionInput = currentInput
+                    console.log({currentInput})
+                    console.log("calculating...")
+                    fetch("process.php", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: `expression=${encodeURIComponent(currentInput)}`
+                    })
+                    // .then((res) => res.json())
+                    .then((res) => console.log(res))
+                    // .then((data) => console.log("Response from server : " + data))
+                    .catch((err) => console.log(err))
+
+                    let expression = currentInput.replace(/x/g, "*");  // Replace "X" symbol to "*"
+
+                    currentInput = eval(expression); // Hitung hasil
+
+                } catch {
+                    currentInput = "Error"; // Jika ada kesalahan
+                    // currentInput = "expression : " + expression; // Jika ada kesalahan=
+                }
+            } else {
+                currentInput = currentInput + value; // Tambahkan angka/operator ke input
             }
-        } else {
-            currentInput = currentInput + value; // Tambahkan angka/operator ke input
-        }
 
-        questionText.textContent = questionInput || ""
-        resultText.textContent = currentInput || "0"; // Tampilkan hasil
-    }
-</script>
+            questionText.textContent = questionInput || ""
+            resultText.textContent = currentInput || "0"; // Tampilkan hasil
+        }
+    </script>
 
 </body>
 </html>
