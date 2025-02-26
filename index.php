@@ -5,7 +5,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator PHP</title>
+    <title>Calculator App | Diandra</title>
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -20,7 +21,7 @@
             flex flex-col gap-2 items-end relative
         ">
             <p id="question" class="text-white font-regular text-md px-2 opacity-60"></p>
-            <h1 id="result-area" class="text-5xl font-bold text-white px-2">0</h1>
+            <h1 id="result-area" class="text-5xl font-bold text-white px-2 max-w-[350px] truncate">0</h1>
 
             <img src="assets/history.png" alt="image" id="toggleHistoryBtn" class="absolute top-0 left-0"/>
         </div>
@@ -31,7 +32,8 @@
                             ["label" => "7", "type" => "number"], ["label" => "8", "type" => "number"], ["label" => "9", "type" => "number"], ["label" => "/", "type" => "symbol"],
                             ["label" => "4", "type" => "number"], ["label" => "5", "type" => "number"], ["label" => "6", "type" => "number"], ["label" => "x", "type" => "symbol"],
                             ["label" => "1", "type" => "number"], ["label" => "2", "type" => "number"], ["label" => "3", "type" => "number"], ["label" => "-", "type" => "symbol"],
-                            ["label" => "C", "type" => "action"], ["label" => "0", "type" => "number"], ["label" => "=", "type" => "action"], ["label" => "+", "type" => "symbol"]
+                            ["label" => "C", "type" => "action"], ["label" => "0", "type" => "number"], ["label" => "=", "type" => "action"], ["label" => "+", "type" => "symbol"],
+                            ["label" => "00", "type" => "number"], ["label" => "Del", "type" => "delete"], ["label" => "^", "type" => "symbol"], ["label" => ".", "type" => "symbol"]
                         ];
 
                     
@@ -69,74 +71,43 @@
         >
             <h1 class="text-md text-white">History</h1>
 
-            <div class="w-full h-full max-h-[100%] overflow-y-auto scrollbar-hidden"
+            <div id="historyContainer" class="w-full h-full max-h-[100%] overflow-y-auto scrollbar-hidden"
             >
             <?php
                 require 'connection.php'; // File koneksi database
 
-                $query = "SELECT first_numbers, expression, second_numbers, result FROM history ORDER BY createdAt DESC";
+                $query = "SELECT id, expression, result FROM histories ORDER BY createdAt DESC";
                 $result = $conn->query($query);
 
                 if ($result->num_rows > 0) {
                     while ($row = $result->fetch_assoc()) {
-                        // Format ekspresi menjadi: "6 + 6"
-                        $formattedExpression = "{$row['first_numbers']} {$row['expression']} {$row['second_numbers']}";
-                        $resultValue = $row['result'];
+                        $formattedExpression = $row['expression'];  // Ambil ekspresi langsung
+                        $resultValue = $row['result']; // Ambil hasil
+                        $itemId = $row['id'];
+
 
                         // Tampilkan dalam HTML
                         echo "
-                            <div class='flex flex-col justify-between w-full bg-transparent hover:bg-[#3B3749] p-2'>
+                            <div class='flex flex-col justify-between w-full bg-transparent hover:bg-[#3B3749] p-2 relative group'>
                                 <h1 class='text-sm text-white opacity-60'>$formattedExpression</h1>
                                 <h1 class='text-2xl text-white font-bold leading-none'>$resultValue</h1>
+
+                                <h1 class='absolute right-2 top-1/2 -translate-y-1/2 text-transparent hover:text-white cursor-pointer transition'
+                                    onclick='deleteItem(this, $itemId)'>X</h1>
                             </div>
                         ";
                     }
                 } 
 
                 $conn->close();
-            ?>
+                ?>
+
             </div>
 
         </div>
 
 
     </div>
-
-    <!-- <div class="bg-white shadow-lg rounded-lg p-6 w-96">
-        <h2 class="text-xl font-bold text-center mb-4">Kalkulator</h2>
-        <form action="process.php" method="POST" class="flex flex-col space-y-2">
-            <input type="number" name="first_numbers" placeholder="Masukkan angka pertama" required class="border p-2 rounded">
-            <select name="expression" required class="border p-2 rounded">
-                <option value="+">+</option>
-                <option value="-">-</option>
-                <option value="*">×</option>
-                <option value="/">÷</option>
-            </select>
-            <input type="number" name="second_numbers" placeholder="Masukkan angka kedua" required class="border p-2 rounded">
-            <button type="submit" class="bg-blue-500 text-white py-2 rounded hover:bg-blue-600">Hitung</button>
-        </form>
-    </div> -->
-
-    <!-- History -->
-    <!-- <div class="bg-white shadow-lg rounded-lg p-6 w-96 mt-6">
-
-        <h2 class="text-xl font-bold text-center mb-4">Riwayat Perhitungan</h2>
-        <ul>
-            // <?php
-                // $sql = "SELECT * FROM history"; 
-                // $result = $conn->query($sql);
-
-                // if (!$result) {
-                    // die("Kesalahan SQL: " . $conn->error); // Debugging SQL error
-                // }
-
-                // while ($row = $result->fetch_assoc()) {
-                    // echo "ID: " . $row["id"] . " | " . $row["first_numbers"] . " " . $row["expression"] . " " . $row["second_numbers"] . " = " . $row["result"] . "<br>";
-                // }
-            // ?>
-        </ul>
-    </div> -->
-    
 
     <script>
 
@@ -160,18 +131,49 @@
                 currentInput = ""; // Reset input
                 questionInput = ""
 
+            } else if (value === "Del") {
+                currentInput = currentInput.slice(0, -1)
+
             } else if (value === "=") {
+                currentInput = currentInput
+                    .replace(/x/g, "*")   // Ubah 'x' ke '*'
+                    .replace(/\^/g, "**") // Ubah '^' ke '**' untuk JavaScript
+                    .replace(/√(\d+)/g, "Math.sqrt($1)"); // Ubah '√' ke 'Math.sqrt()'
                 try {
                     questionInput = currentInput
-                    console.log({currentInput})
-                    console.log("calculating...")
+                    console.log("calculating..." + currentInput)
                     fetch("process.php", {
                         method: "POST",
                         headers: { "Content-Type": "application/x-www-form-urlencoded" },
                         body: `expression=${encodeURIComponent(currentInput)}`
                     })
-                    // .then((res) => res.json())
-                    .then((res) => console.log(res))
+                    .then((res) => res.json())
+                    .then((res) => {
+                        console.log(res)
+                        if (res.status == 'success') {
+                            currentInput = questionInput.toString();
+                            console.log({questionInput})
+                            let expression = questionInput.replace(/x/g, "*");  // Replace "X" dengan "*"
+                            currentInput = eval(expression); // Hitung hasil
+
+                            // Buat elemen history baru
+                            const historyContainer = document.getElementById("historyContainer");
+                            const newHistoryItem = document.createElement("div");
+                            newHistoryItem.classList.add("flex", "flex-col", "justify-between", "w-full", "bg-transparent", "hover:bg-[#3B3749]", "p-2", "relative",);
+                            newHistoryItem.innerHTML = `
+                                <h1 class='text-sm text-white opacity-60'>${expression}</h1>
+                                <h1 class='text-2xl text-white font-bold leading-none'>${res.result}</h1>
+
+                                <h1 class='absolute right-2 top-1/2 -translate-y-1/2 text-transparent hover:text-white cursor-pointer transition'
+                                    onclick='deleteItem(this, ${res.id})'>X</h1>
+                            `;
+
+                            // Tambahkan ke atas history
+                            historyContainer.prepend(newHistoryItem);
+                        } else {
+                            console.error("Gagal menyimpan ke database:", res.message);
+                        }
+                    })
                     // .then((data) => console.log("Response from server : " + data))
                     .catch((err) => console.log(err))
 
@@ -190,6 +192,25 @@
             questionText.textContent = questionInput || ""
             resultText.textContent = currentInput || "0"; // Tampilkan hasil
         }
+        
+        function deleteItem(element, itemId) {
+
+            fetch("delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: itemId }),
+            })
+            .then(response => response.json())
+            .then(data => {
+            if (data.status === "success") {
+                element.parentElement.remove(); // Hapus elemen dari UI
+            } else {
+                alert("Gagal menghapus item!");
+            }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+
     </script>
 
 </body>
